@@ -108,6 +108,28 @@ npx tsx tests/verify_phase5_autonomous_engine.mjs
 
 ---
 
+## Production Deployment (Vercel)
+
+VERITY is a full-stack Next.js application requiring server runtime support for:
+- Live external internet multi-platform search adapters
+- SSRF-protected content fetching & metadata resolution
+- Server-side JWT authentication & session issuance
+- Atomic community voting & claim revision persistence
+- Automated background discovery cron triggers (`vercel.json`)
+
+### Deploying to Vercel
+1. Import the repository `devSatyamm/Verity` into your [Vercel Dashboard](https://vercel.com/new).
+2. Framework Preset will be automatically detected as **Next.js**.
+3. Build Command: `next build` (or `npm run build`), Output Directory: `.next`.
+4. Configure required Environment Variables in the Vercel project settings (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `MODERATOR_API_SECRET`, `VERITY_AUTH_SECRET`).
+5. Deploy. Vercel automatically activates the hourly discovery cron specified in [`vercel.json`](./vercel.json).
+
+### Note on GitHub Pages
+GitHub Pages provides static-only HTML file hosting. It does not execute Node.js API routes (`/api/*`), handle SSRF proxy validation, or maintain persistent server states. If GitHub Pages is enabled on the repository (`Settings` → `Pages`), GitHub automatically runs Jekyll to render markdown files (`README.md`). For production access, use the live Vercel deployment and disable GitHub Pages in repository settings (`Source: None`).
+
+---
+
 ## License
 
 This project is licensed under the MIT License.
+
