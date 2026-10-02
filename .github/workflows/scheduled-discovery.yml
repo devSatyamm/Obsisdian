@@ -1,0 +1,46 @@
+name: VERITY Autonomous Scheduled Ingestion (Secondary / Fallback)
+
+# Primary Scheduler: Vercel Cron (configured in vercel.json)
+# Secondary Scheduler: GitHub Actions workflow_dispatch (manual trigger / disaster recovery)
+#
+# To avoid duplicate hourly ingestion executions, GitHub Actions schedule is commented out
+# by default. Enable only if deploying outside of Vercel.
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   # Hourly backup trigger (uncomment only if Vercel Cron is not active)
+  #   - cron: '0 * * * *'
+
+jobs:
+  run-discovery:
+    name: Execute Autonomous Web Discovery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Ingestion Cron Endpoint
+        run: |
+          if [ -z "${{ secrets.VERITY_APP_URL }}" ]; then
+            echo "VERITY_APP_URL secret is not set. Please set VERITY_APP_URL in repository secrets."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "CRON_SECRET secret is not set. Please set CRON_SECRET in repository secrets."
+            exit 1
+          fi
+
+          echo "Triggering VERITY discovery cron at ${{ secrets.VERITY_APP_URL }}/api/discovery/cron..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.VERITY_APP_URL }}/api/discovery/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Response code: $HTTP_CODE"
+          echo "Response body: $BODY"
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Cron trigger failed with status $HTTP_CODE"
+            exit 1
+          fi
