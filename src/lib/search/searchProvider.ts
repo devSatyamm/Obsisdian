@@ -1,7 +1,7 @@
 import { SearchResultItem } from './types';
 import { classifyQueryIntent } from './intentClassifier';
 import { validateSourceAgainstIntent } from './queryEvidenceValidator';
-import { cleanText } from './adapters/types';
+import { cleanText, cleanSnippet, cleanHeadline } from './adapters/types';
 
 const KNOWN_PUBLISHER_DOMAINS: Record<string, string> = {
   'times of india': 'timesofindia.indiatimes.com',
@@ -129,14 +129,8 @@ async function searchGoogleNews(query: string, limit = 15): Promise<SearchResult
       const sourceUrlAttr = it.match(/<source[^>]*url="([^"]+)"[^>]*>/)?.[1];
       const publisher = sourceMatch ? cleanText(sourceMatch[1]) : 'Public Media';
       const descMatch = it.match(/<description>([\s\S]*?)<\/description>/);
-      const snippet = descMatch ? cleanText(descMatch[1]) : '';
-
-      // Clean title if it ends with " - Publisher"
-      let title = cleanText(rawTitle);
-      const lastDash = title.lastIndexOf(' - ');
-      if (lastDash > 15) {
-        title = title.substring(0, lastDash).trim();
-      }
+      const title = cleanHeadline(rawTitle, publisher);
+      const snippet = cleanSnippet(descMatch ? descMatch[1] : '', title, publisher);
 
       const pubDomain = resolvePublisherDomain(publisher, link, sourceUrlAttr);
       const wire = detectWireSyndication(title, snippet, publisher);

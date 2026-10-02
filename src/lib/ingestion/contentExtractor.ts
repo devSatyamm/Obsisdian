@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { URL } from 'url';
+import { cleanText, cleanHeadline } from '../utils/textSanitizer';
 
 export interface ExtractedArticle {
   url: string;
@@ -118,28 +119,7 @@ export function discoverUrlsFromHtml(html: string, baseUrl: string): string[] {
   return Array.from(discovered);
 }
 
-/**
- * Strips HTML tags, comments, script/style blocks, and decodes entities.
- */
-function stripHtml(rawHtml: string): string {
-  if (!rawHtml) return '';
-  return rawHtml
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-    .replace(/<(?:noscript|nav|header|footer|aside|form)\b[^<]*(?:(?!<\/(?:noscript|nav|header|footer|aside|form)>)<[^<]*)*<\/(?:noscript|nav|header|footer|aside|form)>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&mdash;/g, '—')
-    .replace(/&ndash;/g, '–')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+
 
 /**
  * Extracts structured metadata and readable clean text from an HTML document.
@@ -167,16 +147,16 @@ export function extractArticleFromHtml(html: string, url: string, fallbackPublis
   if (!headline) {
     const h1Match = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
     if (h1Match) {
-      headline = stripHtml(h1Match[1]);
+      headline = h1Match[1];
     }
   }
   if (!headline) {
     const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
     if (titleMatch) {
-      headline = stripHtml(titleMatch[1]);
+      headline = titleMatch[1];
     }
   }
-  headline = headline.replace(/\s+/g, ' ').trim();
+  headline = cleanHeadline(headline);
 
   // 3. Author
   let author: string | undefined;
@@ -184,7 +164,7 @@ export function extractArticleFromHtml(html: string, url: string, fallbackPublis
     html.match(/<meta\b[^>]*\b(?:name|property)=["'](?:author|article:author|dc\.creator)["'][^>]*\bcontent=["']([^"']+)["'][^>]*>/i) ||
     html.match(/<[a-z]+\b[^>]*\b(?:class|rel)=["'][^"']*\b(?:author|byline|writer)\b[^"']*["'][^>]*>([\s\S]*?)<\/[a-z]+>/i);
   if (authorMatch) {
-    const extracted = stripHtml(authorMatch[1]);
+    const extracted = cleanText(authorMatch[1]);
     if (extracted.length > 2 && extracted.length < 80) {
       author = extracted;
     }
@@ -194,7 +174,7 @@ export function extractArticleFromHtml(html: string, url: string, fallbackPublis
   let publisher = fallbackPublisher;
   const siteNameMatch = html.match(/<meta\b[^>]*\bproperty=["']og:site_name["'][^>]*\bcontent=["']([^"']+)["'][^>]*>/i);
   if (siteNameMatch && siteNameMatch[1]) {
-    publisher = siteNameMatch[1].trim();
+    publisher = cleanText(siteNameMatch[1]);
   } else {
     try {
       publisher = new URL(url).hostname.replace(/^www\./i, '');
@@ -228,14 +208,14 @@ export function extractArticleFromHtml(html: string, url: string, fallbackPublis
     }
   }
 
-  const cleanText = stripHtml(mainHtml);
-  const rawExcerpt = cleanText.substring(0, 500);
+  const cleanedArticleText = cleanText(mainHtml);
+  const rawExcerpt = cleanedArticleText.substring(0, 500);
 
   // 7. Content Fingerprint (SHA-256)
-  const normalizedForHash = `${headline.toLowerCase()}|${cleanText.substring(0, 1500).toLowerCase()}`;
+  const normalizedForHash = `${headline.toLowerCase()}|${cleanedArticleText.substring(0, 1500).toLowerCase()}`;
   const contentHash = crypto.createHash('sha256').update(normalizedForHash).digest('hex');
 
-  const wordCount = cleanText ? cleanText.split(/\s+/).filter(Boolean).length : 0;
+  const wordCount = cleanedArticleText ? cleanedArticleText.split(/\s+/).filter(Boolean).length : 0;
 
   return {
     url,
@@ -245,7 +225,7 @@ export function extractArticleFromHtml(html: string, url: string, fallbackPublis
     publisher,
     publishedDate,
     retrievedAt,
-    cleanText,
+    cleanText: cleanedArticleText,
     rawExcerpt,
     contentHash,
     wordCount

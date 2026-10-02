@@ -25,6 +25,7 @@ import { repository } from '../db/repository';
 import { classifyQueryIntent, QueryIntent } from './intentClassifier';
 import { validateAndRankEvidence, ValidationSummary } from './queryEvidenceValidator';
 import { resolvePublisherDomain } from './searchProvider';
+import { cleanText, cleanTimelineEventText, deduplicateTimelineEvents } from '../utils/textSanitizer';
 
 /**
  * Maps a numeric evidence support score (0–100 or null) to its transparent evidence support band.
@@ -127,70 +128,79 @@ function categorizeClaim(sentence: string): ClaimVerificationCategory {
 }
 
 /**
- * Rule-based timeline extractor that orders key events chronologically.
+ * Rule-based timeline extractor that orders key events chronologically
+ * with strict HTML sanitization and duplicate milestone merging.
  */
 function buildTimeline(sources: SearchResultItem[], query: string): TimelineEvent[] {
-  const events: TimelineEvent[] = [];
-  const seenEvents = new Set<string>();
+  const rawEvents: TimelineEvent[] = [];
 
   for (let i = 0; i < sources.length; i++) {
     const s = sources[i];
-    const textPool = [s.title, s.snippet, s.extractedBody || ''].filter(Boolean).join('. ');
+    const cleanTitle = cleanText(s.title);
+    const cleanSnip = cleanText(s.snippet);
+    const cleanBody = cleanText(s.extractedBody);
+
+    // Build sentence pool without duplicating the exact title
+    const poolParts = [cleanTitle];
+    if (cleanSnip && !cleanSnip.toLowerCase().startsWith(cleanTitle.toLowerCase().slice(0, 30))) {
+      poolParts.push(cleanSnip);
+    }
+    if (cleanBody && !cleanBody.toLowerCase().startsWith(cleanTitle.toLowerCase().slice(0, 30))) {
+      poolParts.push(cleanBody);
+    }
+
+    const textPool = poolParts.join('. ');
     const sentences = textPool.split(/(?<=[.!?\n])\s+/);
 
     for (const sent of sentences) {
-      const trimmed = sent.replace(/\s+/g, ' ').trim();
-      if (trimmed.length < 20 || trimmed.length > 250) continue;
+      const cleanedSent = cleanTimelineEventText(sent, s.publisher);
+      if (cleanedSent.length < 20 || cleanedSent.length > 250) continue;
 
-      if (/cookie|privacy|subscribe|rights reserved/i.test(trimmed)) continue;
-
-      const norm = trimmed.toLowerCase().substring(0, 45);
-      if (seenEvents.has(norm)) continue;
+      if (/cookie|privacy|subscribe|rights reserved|advertisement|sign in/i.test(cleanedSent)) continue;
 
       let eventDate = s.publishedAt
         ? new Date(s.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Recent';
 
-      const extractedDates = extractDatesFromText(trimmed);
+      const extractedDates = extractDatesFromText(cleanedSent);
       if (extractedDates.length > 0) {
         eventDate = extractedDates[0];
       }
 
-      seenEvents.add(norm);
-      events.push({
-        id: `evt_${events.length + 1}`,
+      rawEvents.push({
+        id: `raw_${rawEvents.length + 1}`,
         date: eventDate,
-        event: trimmed,
-        source: s.publisher,
+        event: cleanedSent,
+        source: cleanText(s.publisher) || 'Verified Source',
         sourceUrl: s.url
       });
 
-      if (events.length >= 6) break;
+      if (rawEvents.length >= 12) break;
     }
-    if (events.length >= 6) break;
+    if (rawEvents.length >= 12) break;
   }
 
-  if (events.length < 3) {
-    for (let i = 0; i < sources.length && events.length < 6; i++) {
+  // Fallback: If not enough events from sentences, use clean headlines
+  if (rawEvents.length < 3) {
+    for (let i = 0; i < sources.length && rawEvents.length < 8; i++) {
       const s = sources[i];
-      const norm = s.title.toLowerCase().substring(0, 45);
-      if (!seenEvents.has(norm)) {
-        seenEvents.add(norm);
+      const cleanTitle = cleanTimelineEventText(s.title, s.publisher);
+      if (cleanTitle && cleanTitle.length >= 15) {
         const eventDate = s.publishedAt
           ? new Date(s.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : 'Recent';
-        events.push({
-          id: `evt_${events.length + 1}`,
+        rawEvents.push({
+          id: `raw_${rawEvents.length + 1}`,
           date: eventDate,
-          event: s.title,
-          source: s.publisher,
+          event: cleanTitle,
+          source: cleanText(s.publisher) || 'Verified Source',
           sourceUrl: s.url
         });
       }
     }
   }
 
-  return events;
+  return deduplicateTimelineEvents(rawEvents);
 }
 
 /**
@@ -232,7 +242,7 @@ function extractFactualClaims(sources: SearchResultItem[], intent?: QueryIntent)
     }
 
     for (const rawSent of candidates) {
-      const sentence = rawSent.replace(/\s+/g, ' ').trim();
+      const sentence = cleanText(rawSent);
       if (sentence.length < 25 || sentence.length > 320) continue;
 
       if (

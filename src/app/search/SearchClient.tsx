@@ -65,6 +65,13 @@ import {
   ClaimPollData,
   AssessmentLabel
 } from '@/lib/search/types';
+import {
+  cleanText,
+  cleanSnippet,
+  cleanHeadline,
+  cleanTimelineEventText
+} from '@/lib/utils/textSanitizer';
+
 
 const SAMPLE_QUERIES = [
   'Smith Dubai airline incident',
@@ -1228,14 +1235,14 @@ export default function SearchClient({
                         <div key={idx} className="relative space-y-0.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#044C4C] absolute -left-[23px] top-1 border-2 border-white" />
                           <div className="font-mono text-[10px] text-[#86928C]">
-                            {(tItem.time ? `${tItem.date} ${tItem.time}` : tItem.date) || 'Chronology Marker'}
+                            {(tItem.time ? `${cleanText(tItem.date)} ${cleanText(tItem.time)}` : cleanText(tItem.date)) || 'Chronology Marker'}
                           </div>
                           <div className="font-bold text-[#141A17] text-[12px] leading-snug">
-                            {tItem.event}
+                            {cleanTimelineEventText(tItem.event, tItem.source)}
                           </div>
                           {tItem.source && (
                             <div className="text-[11px] text-[#525C56]">
-                              Attributable source: <span className="font-medium text-[#044C4C]">{tItem.source}</span>
+                              Attributable source: <span className="font-medium text-[#044C4C]">{cleanText(tItem.source)}</span>
                             </div>
                           )}
                         </div>
@@ -1432,7 +1439,7 @@ export default function SearchClient({
                             <div className="flex items-center justify-between text-[11px] font-mono flex-wrap gap-1">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-bold text-[#044C4C] px-2 py-0.5 rounded bg-white border border-[#E2E8E4]">
-                                  {src.publisher}
+                                  {cleanText(src.publisher)}
                                 </span>
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-[#E6F2F2] text-[#044C4C] font-semibold border border-[#B2D8D8]">
                                   {platformName}
@@ -1460,11 +1467,11 @@ export default function SearchClient({
                             </div>
 
                             <h5 className="font-bold text-xs text-[#141A17] line-clamp-2 leading-snug">
-                              {src.title}
+                              {cleanHeadline(src.title, src.publisher)}
                             </h5>
 
                             <p className="text-[11px] text-[#525C56] line-clamp-2 leading-relaxed">
-                              {src.snippet || src.extractedBody || 'No text snippet available.'}
+                              {cleanSnippet(src.snippet || src.extractedBody, src.title, src.publisher) || 'No text snippet available.'}
                             </p>
                           </div>
 
@@ -1676,10 +1683,10 @@ export default function SearchClient({
                         <div key={idx} className="relative space-y-0.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#044C4C] absolute -left-[23px] top-1 border-2 border-white" />
                           <div className="font-mono text-[10px] text-[#86928C]">
-                            {(tItem.time ? `${tItem.date} ${tItem.time}` : tItem.date) || 'Recent Analysis'}
+                            {(tItem.time ? `${cleanText(tItem.date)} ${cleanText(tItem.time)}` : cleanText(tItem.date)) || 'Recent Analysis'}
                           </div>
                           <div className="font-bold text-[#141A17] text-[11px] leading-snug">
-                            {tItem.event}
+                            {cleanTimelineEventText(tItem.event, tItem.source)}
                           </div>
                         </div>
                       ))

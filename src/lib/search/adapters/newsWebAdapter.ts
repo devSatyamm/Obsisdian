@@ -1,4 +1,4 @@
-import { PlatformSourceAdapter, AdapterExecutionResult, AdapterQueryOptions, cleanText } from './types';
+import { PlatformSourceAdapter, AdapterExecutionResult, AdapterQueryOptions, cleanText, cleanSnippet, cleanHeadline } from './types';
 import { SearchResultItem } from '../types';
 import { resolvePublisherDomain, detectWireSyndication } from '../searchProvider';
 
@@ -51,13 +51,8 @@ export class NewsWebSourceAdapter implements PlatformSourceAdapter {
           const sourceUrlAttr = it.match(/<source[^>]*url="([^"]+)"[^>]*>/)?.[1];
           const publisher = sourceMatch ? cleanText(sourceMatch[1]) : 'Public Media';
           const descMatch = it.match(/<description>([\s\S]*?)<\/description>/);
-          const snippet = descMatch ? cleanText(descMatch[1]) : '';
-
-          let title = cleanText(rawTitle);
-          const lastDash = title.lastIndexOf(' - ');
-          if (lastDash > 15) {
-            title = title.substring(0, lastDash).trim();
-          }
+          const title = cleanHeadline(rawTitle, publisher);
+          const snippet = cleanSnippet(descMatch ? descMatch[1] : '', title, publisher);
 
           const pubDomain = resolvePublisherDomain(publisher, link, sourceUrlAttr);
           const wire = detectWireSyndication(title, snippet, publisher);

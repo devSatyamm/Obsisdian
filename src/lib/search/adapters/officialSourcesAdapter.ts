@@ -1,4 +1,4 @@
-import { PlatformSourceAdapter, AdapterExecutionResult, AdapterQueryOptions, cleanText } from './types';
+import { PlatformSourceAdapter, AdapterExecutionResult, AdapterQueryOptions, cleanText, cleanSnippet, cleanHeadline } from './types';
 import { SearchResultItem, SocialContentType } from '../types';
 
 export class OfficialSourcesAdapter implements PlatformSourceAdapter {
@@ -52,11 +52,8 @@ export class OfficialSourcesAdapter implements PlatformSourceAdapter {
           const sourceMatch = it.match(/<source[^>]*>([\s\S]*?)<\/source>/);
           const publisher = sourceMatch ? cleanText(sourceMatch[1]) : 'Government / Institutional Portal';
           const descMatch = it.match(/<description>([\s\S]*?)<\/description>/);
-          const snippet = descMatch ? cleanText(descMatch[1]) : '';
-
-          let title = cleanText(rawTitle);
-          const lastDash = title.lastIndexOf(' - ');
-          if (lastDash > 10) title = title.substring(0, lastDash).trim();
+          const title = cleanHeadline(rawTitle, publisher);
+          const snippet = cleanSnippet(descMatch ? descMatch[1] : '', title, publisher);
 
           const contentType: SocialContentType = 'official_statement';
 

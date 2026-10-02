@@ -1,22 +1,7 @@
 import crypto from 'crypto';
 import { IngestedFeedItem } from './types';
+import { cleanText, cleanHeadline } from '../utils/textSanitizer';
 
-function stripHtml(html: string): string {
-  if (!html) return '';
-  return html
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function extractTagContent(xml: string, tagName: string): string {
   const cdataRegex = new RegExp(`<${tagName}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tagName}>`, 'i');
@@ -54,8 +39,12 @@ export function parseFeedContent(
   while ((match = itemRegex.exec(xmlContent)) !== null) {
     const itemXml = match[1];
 
+    // Publisher / source
+    let publisher = extractTagContent(itemXml, 'source') || extractTagContent(itemXml, 'dc:creator') || sourceName;
+    publisher = cleanText(publisher) || sourceName;
+
     const titleRaw = extractTagContent(itemXml, 'title');
-    const title = stripHtml(titleRaw);
+    const title = cleanHeadline(titleRaw, publisher);
 
     // Link handling (RSS <link> or Atom <link href="..."/>)
     let url = extractTagContent(itemXml, 'link');
@@ -63,11 +52,7 @@ export function parseFeedContent(
       const linkTagMatch = itemXml.match(/<link[^>]+href=["']([^"']+)["'][^>]*>/i);
       if (linkTagMatch) url = linkTagMatch[1];
     }
-    url = url.trim();
-
-    // Publisher / source
-    let publisher = extractTagContent(itemXml, 'source') || extractTagContent(itemXml, 'dc:creator') || sourceName;
-    publisher = stripHtml(publisher) || sourceName;
+    url = (url || '').trim();
 
     // Publication date
     const pubDateRaw =
@@ -88,10 +73,10 @@ export function parseFeedContent(
       extractTagContent(itemXml, 'content') ||
       extractTagContent(itemXml, 'content:encoded') ||
       extractTagContent(itemXml, 'summary');
-    const cleanText = stripHtml(descriptionRaw);
+    const cleanBody = cleanText(descriptionRaw);
 
     // Compute unique content hash for change and duplicate tracking
-    const contentToHash = `${title.toLowerCase()}|${cleanText.toLowerCase()}`;
+    const contentToHash = `${title.toLowerCase()}|${cleanBody.toLowerCase()}`;
     const contentHash = crypto.createHash('sha256').update(contentToHash).digest('hex');
 
     if (title && url) {
@@ -105,7 +90,7 @@ export function parseFeedContent(
         publisher,
         publicationDate,
         rawExcerpt: descriptionRaw.substring(0, 500),
-        cleanText,
+        cleanText: cleanBody,
         contentHash
       });
     }
