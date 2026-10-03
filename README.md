@@ -1,135 +1,262 @@
-# VERITY — Public Evidence & Intelligence Verification Engine
+ <div align="center">
+<img src="docs/assets/verity-banner.svg" alt="VERITY - Public Claim Intelligence" width="100%"/>
 
-VERITY is an open-source, evidence-anchored intelligence platform for verifying public claims, events, corporate announcements, and regulatory disclosures. Built with a zero-hallucination, deterministic architecture, VERITY cross-examines information across statutory records, global news wires, social platforms, and community contributions without relying on opaque scoring models.
 
----
 
-## Key Capabilities
 
-- **Multi-Platform Source Retrieval**: Queries across 7 platform adapters (Global News & RSS, Statutory/Government Portals, Reddit Discussions, YouTube Captions & Metadata, Discussion Forums, X/Twitter API, and Instagram/Meta Graph) with strict platform terms compliance and transparent access reporting.
-- **Hard Claim Relevance Gate**: Validates retrieved content against the exact target entity and predicate claim before evidence is scored, eliminating false-positive keyword overlap traps.
-- **Deterministic Evidentiary Synthesis**: Calibrates factual support scores (0–100 or unassessable null) based on independent publisher origin density, wire syndication penalties, and attributable excerpts.
-- **Claim-Specific Community Voting**: Enables authenticated community consensus on specific claims (`Supported`, `Unsupported`, `Insufficient evidence`) with strict 1-vote-per-user isolation, while strictly separating community sentiment from AI factual scoring.
-- **Immutable Revision Tracking**: Maintains a complete, traceable audit trail of claim revisions, scores, and underlying evidence modifications over time.
-- **Multilingual Localization & Accessibility**: Native UI translation for Indian languages (English, Hindi, Bengali, Telugu, Tamil, Marathi, Gujarati) with Text-to-Speech (TTS) audio narration of synthesized dossiers.
-- **Role-Based Moderation & SSRF Guards**: Secure submission staging with automated spam honeypots, URL protocol validation, private IP blocking (SSRF guards), and cryptographic JWT moderator approval workflows.
+An evidence-focused platform for exploring public claims, examining sources, and understanding how assessments are presented.
 
----
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-42d6ff?style=for-the-badge&logo=githubpages&logoColor=white)](https://devsatyamm.github.io/Verity/)
+[![Repository](https://img.shields.io/badge/GitHub-Repository-171717?style=for-the-badge&logo=github)](https://github.com/devSatyamm/Verity)
+[![Status](https://img.shields.io/badge/Focus-Evidence%20%26%20Transparency-8275ef?style=for-the-badge)](https://github.com/devSatyamm/Verity)
 
-## Technology Stack
+*Evidence over virality. Transparency over assumptions.*
 
-- **Framework**: Next.js 16 (App Router, Turbopack)
-- **Language**: TypeScript (Strict Mode)
-- **Styling**: Tailwind CSS, CSS Custom Properties
-- **Icons & Visuals**: Lucide React, Recharts
-- **Database & Auth**: Supabase PostgreSQL with Row Level Security (RLS) policies, with resilient local in-memory fallback for offline development
-- **Security**: Cryptographic JWT authentication, SSRF protection, strict CORS, input sanitization
+</div>
 
 ---
 
-## Local Development Setup
+## ✦ About VERITY
 
-### 1. Prerequisites
-- Node.js 20.x or 22.x+
-- npm (or pnpm / yarn)
+In a world where information spreads faster than ever, distinguishing facts from misleading claims is increasingly difficult.
 
-### 2. Installation
+**VERITY** is designed to bring claim exploration, evidence, source attribution, and claim history into one interface.
+
+> Popularity is not proof. Every assessment should be traceable to evidence.
+
+## ◈ How It Works
+
+<div align="center">
+
+```mermaid
+flowchart LR
+    A["🔎 Explore Claim"] --> B["🌐 Find Sources"]
+    B --> C["🧾 Examine Evidence"]
+    C --> D["🧠 Assess Findings"]
+    D --> E["📊 Present Results"]
+    style A fill:#142d4e,stroke:#42d6ff,color:#fff
+    style B fill:#142d4e,stroke:#42d6ff,color:#fff
+    style C fill:#142d4e,stroke:#42d6ff,color:#fff
+    style D fill:#252348,stroke:#8b7cff,color:#fff
+    style E fill:#252348,stroke:#8b7cff,color:#fff
+```
+
+</div>
+
+| Step | Process | Description |
+|---|---|---|
+| 01 | **Explore** | Search and explore public claims. |
+| 02 | **Collect** | Gather relevant sources and context. |
+| 03 | **Analyze** | Compare evidence and assess relevance. |
+| 04 | **Review** | Present findings with uncertainty and provenance. |
+
+## ✧ Core Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🔎 Claim Search
+
+Explore public claims through a focused search interface.
+
+</td>
+<td width="50%" valign="top">
+
+### 🧾 Evidence Explorer
+
+Inspect sources, context, and supporting information.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🧠 AI Assessment
+
+A structured assessment interface designed to present evidence and uncertainty.
+
+</td>
+<td width="50%" valign="top">
+
+### 🕒 Claim Timeline
+
+Track claim revisions and changes where historical data is available.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🗳️ Community Feedback
+
+Keep community opinion separate from evidence-based findings.
+
+</td>
+<td width="50%" valign="top">
+
+### 🌐 Source Integrations
+
+Designed to accommodate public records, news sources, and online information.
+
+</td>
+</tr>
+</table>
+
+## ⌘ Architecture
+
+```mermaid
+flowchart TB
+    A["VERITY Frontend"]
+    A --> B["Claim Search & Results"]
+    A --> C["Evidence & Timeline"]
+    A --> D["Community Interface"]
+    B --> E["Optional Backend Services"]
+    C --> E
+    D --> E
+    E --> F["Live Retrieval"]
+    E --> G["Secure Authentication"]
+    E --> H["Database & Scheduled Jobs"]
+    style A fill:#142d4e,stroke:#42d6ff,color:#fff
+    style B fill:#172b46,stroke:#426d9b,color:#fff
+    style C fill:#172b46,stroke:#426d9b,color:#fff
+    style D fill:#172b46,stroke:#426d9b,color:#fff
+    style E fill:#252348,stroke:#8b7cff,color:#fff
+    style F fill:#252348,stroke:#8b7cff,color:#fff
+    style G fill:#252348,stroke:#8b7cff,color:#fff
+    style H fill:#252348,stroke:#8b7cff,color:#fff
+```
+
+VERITY's GitHub Pages edition is a static frontend. Features such as live data retrieval, secure authentication, persistent voting, AI processing, and scheduled ingestion require compatible external backend services.
+
+## ⚡ Technology
+
+<div align="center">
+
+![Next.js](https://img.shields.io/badge/Next.js-Frontend-black?style=flat-square&logo=nextdotjs)
+![React](https://img.shields.io/badge/React-UI-149eca?style=flat-square&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-Types-3178c6?style=flat-square&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-Styling-06b6d4?style=flat-square&logo=tailwindcss)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Deployment-2088ff?style=flat-square&logo=githubactions)
+![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Hosting-222222?style=flat-square&logo=githubpages)
+
+</div>
+
+These badges represent the intended project stack. Check the current source and configuration to confirm active integrations.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js LTS
+- npm
+- Git
+
+### Installation
+
+Clone the repository:
+
 ```bash
 git clone https://github.com/devSatyamm/Verity.git
 cd Verity
+```
+
+Install dependencies:
+
+```bash
 npm install
 ```
 
-### 3. Environment Configuration
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
-```
-
-Configure the following environment variables (by name):
-- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project API URL (optional for offline mode)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase public anonymous client key
-- `SUPABASE_SERVICE_ROLE_KEY` — Supabase server-only service role key (never expose to browser)
-- `VERITY_AUTH_SECRET` — Cryptographic secret for signing session JWT tokens
-- `MODERATOR_API_SECRET` — Server secret key for automated scheduler or privileged API calls
-- `CRON_SECRET` — Secret bearer token for autonomous discovery cron execution
-- `GEMINI_API_KEY` / `OPENAI_API_KEY` — Optional AI provider keys for auxiliary research synthesis
-- `X_BEARER_TOKEN` / `TWITTER_BEARER_TOKEN` — Optional official X API v2 bearer token
-- `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` — Optional official Reddit Data API credentials
-
-*Note: VERITY includes an in-memory database and deterministic research engine that functions out-of-the-box for local testing without external API keys.*
-
----
-
-## Database Migrations
-
-VERITY schemas are managed via incremental Supabase PostgreSQL migrations located in `supabase/migrations/`:
-
-```
-supabase/migrations/
-├── 20261002000000_verity_core_schema.sql
-├── 20261002000001_verity_ingestion_engine.sql
-├── 20261002000002_verity_autonomous_intelligence.sql
-├── 20261002000003_verity_community_voting.sql
-└── 20261002000004_verity_multiplatform_social_intelligence.sql
-```
-
-To apply migrations to your Supabase project:
-```bash
-npx supabase db push
-```
-Or execute the SQL migration files sequentially in the Supabase SQL Editor.
-
----
-
-## Development & Testing Commands
+Start the development server:
 
 ```bash
-# Start local development server (port 3000)
 npm run dev
-
-# Run TypeScript typecheck
-npx tsc --noEmit
-
-# Build production bundle
-npm run build
-
-# Start production server
-npm run start
-
-# Run end-to-end and regression test suites
-npx tsx tests/test_relevance_regression.mjs
-npx tsx tests/verify_ai_assessment_and_voting_e2e.mjs
-npx tsx tests/verify_multiplatform_social_intelligence.mjs
-npx tsx tests/verify_query_relevance_and_grounding.mjs
-npx tsx tests/verify_phase4_e2e_workflow.mjs
-npx tsx tests/verify_phase5_autonomous_engine.mjs
 ```
 
----
+Open [http://localhost:3000](http://localhost:3000).
 
-## Production Deployment (Vercel)
+Check `package.json` for the scripts available in the current version.
 
-VERITY is a full-stack Next.js application requiring server runtime support for:
-- Live external internet multi-platform search adapters
-- SSRF-protected content fetching & metadata resolution
-- Server-side JWT authentication & session issuance
-- Atomic community voting & claim revision persistence
-- Automated background discovery cron triggers (`vercel.json`)
+## 🌍 Deployment
 
-### Deploying to Vercel
-1. Import the repository `devSatyamm/Verity` into your [Vercel Dashboard](https://vercel.com/new).
-2. Framework Preset will be automatically detected as **Next.js**.
-3. Build Command: `next build` (or `npm run build`), Output Directory: `.next`.
-4. Configure required Environment Variables in the Vercel project settings (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `MODERATOR_API_SECRET`, `VERITY_AUTH_SECRET`).
-5. Deploy. Vercel automatically activates the hourly discovery cron specified in [`vercel.json`](./vercel.json).
+<div align="center">
 
-### Note on GitHub Pages
-GitHub Pages provides static-only HTML file hosting. It does not execute Node.js API routes (`/api/*`), handle SSRF proxy validation, or maintain persistent server states. If GitHub Pages is enabled on the repository (`Settings` → `Pages`), GitHub automatically runs Jekyll to render markdown files (`README.md`). For production access, use the live Vercel deployment and disable GitHub Pages in repository settings (`Source: None`).
+### [VERITY Live Demo](https://devsatyamm.github.io/Verity/)
 
----
+</div>
 
-## License
+The static frontend can be deployed through GitHub Actions.
 
-This project is licensed under the MIT License.
+For repository-based GitHub Pages hosting, ensure the build correctly handles the `/Verity/` base path, asset URLs, and client-side routing.
 
+To troubleshoot deployment:
+
+1. Open the repository's **Settings**.
+2. Navigate to **Pages**.
+3. Check the configured deployment source.
+4. Open the **Actions** tab.
+5. Review the latest deployment workflow.
+
+## 🛡️ Design Principles
+
+- **Evidence over virality:** Engagement does not establish truth.
+- **Transparent sourcing:** Preserve source attribution and provenance.
+- **Honest uncertainty:** Allow insufficient evidence as a valid outcome.
+- **Separated perspectives:** Distinguish AI assessments, community opinions, and human review.
+- **Safe rendering:** Treat external content as untrusted input.
+- **Privacy-conscious design:** Never expose privileged credentials in frontend code.
+
+
+
+
+
+## 👤 Maintainers
+
+<div align="center">
+
+<table>
+<tr>
+<td align="center" width="33%">
+
+### Satyam Mishra
+
+<a href="https://github.com/devSatyamm">
+<img src="https://github.com/devSatyamm.png" width="100" height="100" style="border-radius:50%;" alt="Satyam Mishra"/>
+</a>
+
+[GitHub](https://github.com/devSatyamm) • [LinkedIn](https://www.linkedin.com/in/satyamofficial/)
+
+</td>
+
+<td align="center" width="33%">
+
+### Kanak Pant
+
+<a href="https://github.com/kanakpant0305">
+<img src="https://github.com/kanakpant0305.png" width="100" height="100" style="border-radius:50%;" alt="Kanak Pant"/>
+</a>
+
+[GitHub](https://github.com/kanakpant0305) • [LinkedIn](https://www.linkedin.com/in/kanak-pant-39312641b/)
+
+</td>
+
+<td align="center" width="33%">
+
+### Aditya Rahul Joshi
+
+<a href="https://github.com/aadityarahuljoshi-wq">
+<img src="https://github.com/aadityarahuljoshi-wq.png" width="100" height="100" style="border-radius:50%;" alt="Aditya Rahul Joshi"/>
+</a>
+
+[GitHub](https://github.com/aadityarahuljoshi-wq) • [LinkedIn](https://www.linkedin.com/in/aditya-rahul-joshi-a51a9336b/)
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+**VERITY**  
+*Make information easier to investigate.*
+
+</div>
