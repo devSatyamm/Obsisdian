@@ -36,14 +36,17 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc --noEmit
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        continue-on-error: true
+        with:
+          enablement: true
+
       - name: Build static site with GitHub Pages subpath
         env:
           NODE_ENV: production
           NEXT_PUBLIC_BASE_PATH: /Verity
         run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
