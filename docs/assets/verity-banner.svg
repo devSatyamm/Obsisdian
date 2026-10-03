@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#080d1c"/><stop offset="1" stop-color="#101b35"/></linearGradient>
+ <linearGradient id="accent"><stop stop-color="#42d6ff"/><stop offset="1" stop-color="#8b7cff"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1200" height="340" rx="24" fill="url(#bg)"/>
+<g opacity=".14" stroke="#7ca9d8"><path d="M0 70H1200M0 140H1200M0 210H1200M0 280H1200M150 0V340M300 0V340M450 0V340M600 0V340M750 0V340M900 0V340M1050 0V340"/></g>
+<text x="600" y="65" text-anchor="middle" fill="#a5b8d6" font-family="Arial,sans-serif" font-size="16" letter-spacing="6">PUBLIC CLAIM INTELLIGENCE</text>
+<text x="600" y="135" text-anchor="middle" fill="#f5f8ff" font-family="Arial,sans-serif" font-size="68" font-weight="700" letter-spacing="3">VERITY</text>
+<path d="M465 157H735" stroke="url(#accent)" stroke-width="3" filter="url(#glow)"/>
+<text x="600" y="195" text-anchor="middle" fill="#d0d9ec" font-family="Arial,sans-serif" font-size="22">Follow the evidence. Understand the claim.</text>
+<g font-family="Arial,sans-serif" font-size="14" text-anchor="middle">
+ <g><rect x="105" y="250" width="190" height="48" rx="24" fill="#132846" stroke="#3b7095"/><text x="200" y="279" fill="#dff7ff">CLAIM</text></g>
+ <g><rect x="350" y="250" width="190" height="48" rx="24" fill="#132846" stroke="#3b7095"/><text x="445" y="279" fill="#dff7ff">SOURCES</text></g>
+ <g><rect x="595" y="250" width="190" height="48" rx="24" fill="#132846" stroke="#3b7095"/><text x="690" y="279" fill="#dff7ff">EVIDENCE</text></g>
+ <g><rect x="840" y="250" width="255" height="48" rx="24" fill="#182447" stroke="#8376dc"/><text x="967" y="279" fill="#eeeaff">TRANSPARENT ASSESSMENT</text></g>
+</g>
+<g stroke="url(#accent)" stroke-width="2.5" fill="none" filter="url(#glow)"><path d="M298 274H343M543 274H588M788 274H833"/><path d="M334 267l9 7-9 7M579 267l9 7-9 7M824 267l9 7-9 7"/></g>
+</svg>
