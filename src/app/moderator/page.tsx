@@ -20,10 +20,11 @@ import {
   Sparkles,
   Server
 } from 'lucide-react';
-import { repository } from '@/lib/db/repository';
+import { repository, getExternalApiUrl } from '@/lib/db/repository';
 import { CommunitySubmission, ModerationStatus, UserPersona } from '@/lib/types';
 import { DEMO_PERSONAS } from '@/lib/data/mockData';
 import { DiscoverySource, IngestionJobReport, ExtractedClaimCandidate } from '@/lib/ingestion/types';
+import { STATIC_DISCOVERY_SOURCES, STATIC_INGESTION_JOBS } from '@/lib/data/discoveryData';
 
 export default function ModeratorPage() {
   const [currentUser, setCurrentUser] = useState<UserPersona>(DEMO_PERSONAS.moderator);
@@ -36,8 +37,8 @@ export default function ModeratorPage() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Ingestion monitor state
-  const [sources, setSources] = useState<DiscoverySource[]>([]);
-  const [jobs, setJobs] = useState<IngestionJobReport[]>([]);
+  const [sources, setSources] = useState<DiscoverySource[]>(STATIC_DISCOVERY_SOURCES);
+  const [jobs, setJobs] = useState<IngestionJobReport[]>(STATIC_INGESTION_JOBS);
   const [isRunningJob, setIsRunningJob] = useState(false);
   const [runningSourceId, setRunningSourceId] = useState<string | null>(null);
 
@@ -50,13 +51,16 @@ export default function ModeratorPage() {
   };
 
   const loadIngestionData = async () => {
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) return;
+
     try {
-      const srcRes = await fetch('/api/discovery/sources');
+      const srcRes = await fetch(`${apiUrl}/api/discovery/sources`);
       if (srcRes.ok) {
         const { sources: s } = await srcRes.json();
         if (s) setSources(s);
       }
-      const jobsRes = await fetch('/api/discovery/jobs');
+      const jobsRes = await fetch(`${apiUrl}/api/discovery/jobs`);
       if (jobsRes.ok) {
         const { jobs: j } = await jobsRes.json();
         if (j) setJobs(j);
@@ -117,13 +121,22 @@ export default function ModeratorPage() {
   const triggerDiscoveryRun = async (sourceId?: string) => {
     setIsRunningJob(true);
     setRunningSourceId(sourceId || 'all');
+
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      setTimeout(() => {
+        setIsRunningJob(false);
+        setRunningSourceId(null);
+        setActionSuccess('Static Simulation: Discovery cycle refreshed locally.');
+        setTimeout(() => setActionSuccess(null), 5000);
+      }, 800);
+      return;
+    }
+
     try {
-      const res = await fetch('/api/discovery/run', {
+      const res = await fetch(`${apiUrl}/api/discovery/run`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-moderator-key': 'dev-verity-local-2026'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sourceId ? { sourceId } : {})
       });
       const data = await res.json();
@@ -144,13 +157,20 @@ export default function ModeratorPage() {
   };
 
   const toggleSourceActive = async (sourceId: string) => {
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      setSources((prev) =>
+        prev.map((s) => (s.id === sourceId ? { ...s, isActive: !s.isActive } : s))
+      );
+      setActionSuccess(`Source status toggled.`);
+      setTimeout(() => setActionSuccess(null), 3000);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/discovery/sources/${encodeURIComponent(sourceId)}/toggle`, {
+      const res = await fetch(`${apiUrl}/api/discovery/sources/${encodeURIComponent(sourceId)}/toggle`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-moderator-key': 'dev-verity-local-2026'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
         loadIngestionData();

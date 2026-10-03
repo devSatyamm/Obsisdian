@@ -22,34 +22,44 @@ import {
 } from 'lucide-react';
 import { DiscoverySource, IngestionJobReport, ExtractedClaimCandidate } from '@/lib/ingestion/types';
 
+import { STATIC_DISCOVERY_SOURCES, STATIC_INGESTION_JOBS } from '@/lib/data/discoveryData';
+import { getExternalApiUrl } from '@/lib/db/repository';
+
 export default function DiscoveryPage() {
-  const [sources, setSources] = useState<DiscoverySource[]>([]);
-  const [jobs, setJobs] = useState<IngestionJobReport[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState<ExtractedClaimCandidate | null>(null);
+  const [sources, setSources] = useState<DiscoverySource[]>(STATIC_DISCOVERY_SOURCES);
+  const [jobs, setJobs] = useState<IngestionJobReport[]>(STATIC_INGESTION_JOBS);
+  const [selectedCandidate, setSelectedCandidate] = useState<ExtractedClaimCandidate | null>(
+    STATIC_INGESTION_JOBS[0]?.extractedCandidates?.[0] || null
+  );
   const [isRunningJob, setIsRunningJob] = useState(false);
   const [runningSourceId, setRunningSourceId] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<'memory' | 'supabase' | 'loading'>('loading');
+  const [dataSource, setDataSource] = useState<'memory' | 'supabase' | 'loading'>('memory');
   const [dbConfigured, setDbConfigured] = useState<boolean>(false);
 
   const loadData = async () => {
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      setDataSource('memory');
+      return;
+    }
+
     try {
-      // 1. Load Sources
-      const srcRes = await fetch('/api/discovery/sources');
+      // 1. Load Sources from external API
+      const srcRes = await fetch(`${apiUrl}/api/discovery/sources`);
       if (srcRes.ok) {
         const srcData = await srcRes.json();
         if (srcData.sources) setSources(srcData.sources);
       }
 
-      // 2. Load Jobs
-      const jobsRes = await fetch('/api/discovery/jobs');
+      // 2. Load Jobs from external API
+      const jobsRes = await fetch(`${apiUrl}/api/discovery/jobs`);
       if (jobsRes.ok) {
         const jobsData = await jobsRes.json();
         if (jobsData.jobs) {
           setJobs(jobsData.jobs);
-          setDataSource(jobsData.source || 'memory');
-          // If a candidate exists and none selected, auto-select first
+          setDataSource(jobsData.source || 'supabase');
           const allCandidates = jobsData.jobs.flatMap((j: IngestionJobReport) => j.extractedCandidates || []);
           if (allCandidates.length > 0 && !selectedCandidate) {
             setSelectedCandidate(allCandidates[0]);
@@ -58,20 +68,23 @@ export default function DiscoveryPage() {
       }
 
       // 3. Check DB Health Status
-      const healthRes = await fetch('/api/health/db');
+      const healthRes = await fetch(`${apiUrl}/api/health/db`);
       if (healthRes.ok) {
         const healthData = await healthRes.json();
         setDbConfigured(!!healthData.configured);
       }
     } catch (e: any) {
-      console.warn('Failed to load discovery monitor data:', e);
+      console.debug('External discovery API check skipped:', e);
     }
   };
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 15000);
-    return () => clearInterval(interval);
+    const apiUrl = getExternalApiUrl();
+    if (apiUrl) {
+      const interval = setInterval(loadData, 15000);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const triggerDiscoveryRun = async (sourceId?: string) => {
@@ -80,13 +93,22 @@ export default function DiscoveryPage() {
     setActionSuccess(null);
     setActionError(null);
 
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      // Frontend-first demonstration mode
+      setTimeout(() => {
+        setIsRunningJob(false);
+        setRunningSourceId(null);
+        setActionSuccess('Static Simulation: Verified recent discovery cycle refreshed. Live autonomous scraping runs via external worker.');
+        setTimeout(() => setActionSuccess(null), 6000);
+      }, 900);
+      return;
+    }
+
     try {
-      const res = await fetch('/api/discovery/run', {
+      const res = await fetch(`${apiUrl}/api/discovery/run`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-moderator-key': 'dev-verity-local-2026'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sourceId ? { sourceId } : {})
       });
 
@@ -112,13 +134,21 @@ export default function DiscoveryPage() {
   };
 
   const toggleSourceActive = async (sourceId: string) => {
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      // Toggle locally in state
+      setSources((prev) =>
+        prev.map((s) => (s.id === sourceId ? { ...s, isActive: !s.isActive } : s))
+      );
+      setActionSuccess(`Toggled source ${sourceId} locally.`);
+      setTimeout(() => setActionSuccess(null), 3000);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/discovery/sources/${encodeURIComponent(sourceId)}/toggle`, {
+      const res = await fetch(`${apiUrl}/api/discovery/sources/${encodeURIComponent(sourceId)}/toggle`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-moderator-key': 'dev-verity-local-2026'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
         loadData();

@@ -347,4 +347,5 @@ export interface LiveIntelligenceReport {
   databaseComparison: DatabaseCrossReference;
   searchDurationMs: number;
   healthMonitoring?: EvidenceHealthMonitoring;
+  isArchivedDemonstration?: boolean;
 }

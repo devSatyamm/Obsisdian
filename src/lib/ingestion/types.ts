@@ -68,11 +68,15 @@ export interface IngestionJobReport {
   status: 'running' | 'completed' | 'failed' | 'partial';
   itemsDiscovered: number;
   itemsExtracted: number;
+  itemsIngested?: number;
   claimsIdentified: number;
   duplicatesSkipped: number;
+  updatesMatched?: number;
   boilerplateFiltered: number;
+  errorsLogged?: number;
   extractedCandidates: ExtractedClaimCandidate[];
   errorLog?: string;
   startedAt: string;
   completedAt?: string;
+  durationMs?: number;
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
   Radio,
@@ -55,7 +55,8 @@ import {
   VolumeX,
   Play,
   Pause,
-  Square
+  Square,
+  Server
 } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import {
@@ -69,14 +70,17 @@ import {
   cleanText,
   cleanSnippet,
   cleanHeadline,
-  cleanTimelineEventText
+  cleanTimelineEventText,
+  deduplicateTimelineEvents
 } from '@/lib/utils/textSanitizer';
-
+import { repository, getExternalApiUrl } from '@/lib/db/repository';
+import { findSampleDossier, SAMPLE_DOSSIERS } from '@/lib/data/sampleDossiers';
 
 const SAMPLE_QUERIES = [
   'Smith Dubai airline incident',
   'OLA Electric subsidy charge',
   'SEBI algorithmic trading',
+  "Byju's user count revision",
   'RBI digital rupee pilot',
   'Apollo 11 moon landing July 1969',
   'IIT Bombay suicide case'
@@ -92,10 +96,13 @@ export default function SearchClient({
   initialReport = null
 }: SearchClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams ? (searchParams.get('q') || '') : '';
+  const effectiveInitialQuery = initialQuery || urlQuery;
   const { language, t, voiceLang } = useLanguage();
 
-  const [inputQuery, setInputQuery] = useState(initialQuery);
-  const [activeQuery, setActiveQuery] = useState(initialQuery);
+  const [inputQuery, setInputQuery] = useState(effectiveInitialQuery);
+  const [activeQuery, setActiveQuery] = useState(effectiveInitialQuery);
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState('Initiating multi-source intelligence search...');
   const [report, setReport] = useState<LiveIntelligenceReport | null>(initialReport);
@@ -224,28 +231,45 @@ export default function SearchClient({
 
   // Check authenticated session
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.authenticated && data.user) {
-          setSessionUser(data.user);
-        } else {
-          setSessionUser(null);
-        }
-      })
-      .catch(() => setSessionUser(null))
-      .finally(() => setAuthChecked(true));
+    // 1. Check local repository active persona
+    const localUser = repository.getActiveUser();
+    if (localUser && localUser.role !== 'guest') {
+      setSessionUser(localUser);
+      setAuthChecked(true);
+      return;
+    }
+
+    // 2. Check external API if configured
+    const apiUrl = getExternalApiUrl();
+    if (apiUrl) {
+      fetch(`${apiUrl}/api/auth/me`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.authenticated && data.user) {
+            setSessionUser(data.user);
+          } else {
+            setSessionUser(localUser);
+          }
+        })
+        .catch(() => setSessionUser(localUser))
+        .finally(() => setAuthChecked(true));
+    } else {
+      setSessionUser(localUser);
+      setAuthChecked(true);
+    }
   }, []);
 
-  // Update initial report if passed from server
+  // Update initial report if passed from server or URL
   useEffect(() => {
     if (initialReport && !report) {
       setReport(initialReport);
       if (initialReport.keyClaims && initialReport.keyClaims.length > 0) {
         setSelectedClaim(initialReport.keyClaims[0]);
       }
+    } else if (!report && urlQuery && urlQuery !== activeQuery) {
+      executeSearch(urlQuery);
     }
-  }, [initialReport]);
+  }, [initialReport, urlQuery]);
 
   const executeSearch = async (queryText: string) => {
     const q = queryText.trim();
@@ -260,27 +284,72 @@ export default function SearchClient({
     setShowAuditTrail(false);
     setShowRevisionHistory(false);
 
-    router.replace(`/search?q=${encodeURIComponent(q)}`, { scroll: false });
+    // Update browser URL query parameter without full reload
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', q);
+      window.history.replaceState(null, '', url.toString());
+    }
 
-    const stageTimer1 = setTimeout(() => setLoadingStage('1/4 Discovering live articles & regulatory notices across global web...'), 200);
-    const stageTimer2 = setTimeout(() => setLoadingStage('2/4 Fetching source content & extracting factual assertions...'), 700);
-    const stageTimer3 = setTimeout(() => setLoadingStage('3/4 Cross-referencing VERITY historical claim database...'), 1200);
-    const stageTimer4 = setTimeout(() => setLoadingStage('4/4 Synthesizing evidentiary chronology & AI assessment...'), 1600);
+    const stageTimer1 = setTimeout(() => setLoadingStage('1/4 Discovering live articles & regulatory notices across global web...'), 150);
+    const stageTimer2 = setTimeout(() => setLoadingStage('2/4 Fetching source content & extracting factual assertions...'), 400);
+    const stageTimer3 = setTimeout(() => setLoadingStage('3/4 Cross-referencing VERITY historical claim database...'), 700);
+    const stageTimer4 = setTimeout(() => setLoadingStage('4/4 Synthesizing evidentiary chronology & AI assessment...'), 950);
+
+    const apiUrl = getExternalApiUrl();
 
     try {
-      const res = await fetch(`/api/search/live?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      if (apiUrl) {
+        const res = await fetch(`${apiUrl}/api/search/live?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
 
-      if (res.ok && data.report) {
-        setReport(data.report);
-        if (data.report.keyClaims && data.report.keyClaims.length > 0) {
-          setSelectedClaim(data.report.keyClaims[0]);
+        if (res.ok && data.report) {
+          const rep = data.report;
+          if (rep.timeline) {
+            rep.timeline = deduplicateTimelineEvents(rep.timeline);
+          }
+          setReport(rep);
+          if (rep.keyClaims && rep.keyClaims.length > 0) {
+            setSelectedClaim(rep.keyClaims[0]);
+          }
+        } else {
+          setError(data.error || 'Failed to complete real-time intelligence search on external backend.');
         }
       } else {
-        setError(data.error || 'Failed to complete real-time intelligence search.');
+        // Pure frontend offline demonstration mode
+        await new Promise((r) => setTimeout(r, 650));
+        const sample = findSampleDossier(q);
+        if (sample) {
+          const sampleCopy = JSON.parse(JSON.stringify(sample));
+          if (sampleCopy.timeline) {
+            sampleCopy.timeline = deduplicateTimelineEvents(sampleCopy.timeline);
+          }
+          setReport(sampleCopy);
+          if (sampleCopy.keyClaims && sampleCopy.keyClaims.length > 0) {
+            setSelectedClaim(sampleCopy.keyClaims[0]);
+          }
+          setError(null);
+        } else {
+          setReport(null);
+          setError(`OFFLINE_QUERY_UNAVAILABLE:${q}`);
+        }
       }
     } catch (err: any) {
-      setError(`Search error: ${err.message || 'Unable to connect to search service'}`);
+      // In case external API fetch fails, gracefully check sample dossiers
+      const sample = findSampleDossier(q);
+      if (sample) {
+        const sampleCopy = JSON.parse(JSON.stringify(sample));
+        if (sampleCopy.timeline) {
+          sampleCopy.timeline = deduplicateTimelineEvents(sampleCopy.timeline);
+        }
+        setReport(sampleCopy);
+        if (sampleCopy.keyClaims && sampleCopy.keyClaims.length > 0) {
+          setSelectedClaim(sampleCopy.keyClaims[0]);
+        }
+        setError(null);
+      } else {
+        setError(`Search error: ${err.message || 'Unable to connect to search service'}`);
+      }
     } finally {
       clearTimeout(stageTimer1);
       clearTimeout(stageTimer2);
@@ -299,7 +368,8 @@ export default function SearchClient({
   const handleVote = async (option: CommunityVoteOption) => {
     if (!report?.claimPoll) return;
 
-    if (!sessionUser) {
+    const user = sessionUser || repository.getActiveUser();
+    if (!user || user.role === 'guest') {
       setAuthPendingVote(option);
       setShowAuthModal(true);
       return;
@@ -308,61 +378,106 @@ export default function SearchClient({
     setVotingLoading(true);
     setVotingFeedback(null);
 
-    try {
-      const res = await fetch(`/api/claims/${encodeURIComponent(report.claimPoll.claimId)}/poll`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          voteOption: option,
-          claimVersion: report.claimPoll.claimVersion,
-          claimStatement: report.claimPoll.claimStatement
-        })
-      });
+    const apiUrl = getExternalApiUrl();
+    if (apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/api/claims/${encodeURIComponent(report.claimPoll.claimId)}/poll`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voteOption: option,
+            claimVersion: report.claimPoll.claimVersion,
+            claimStatement: report.claimPoll.claimStatement
+          })
+        });
 
-      const data = await res.json();
-      if (res.ok && data.success && data.poll) {
-        setReport((prev) => (prev ? { ...prev, claimPoll: data.poll } : prev));
-        setVotingFeedback(`Your vote "${formatOptionLabel(option)}" has been securely recorded.`);
-      } else {
-        setVotingFeedback(data.error || 'Failed to record vote.');
+        const data = await res.json();
+        if (res.ok && data.success && data.poll) {
+          setReport((prev) => (prev ? { ...prev, claimPoll: data.poll } : prev));
+          setVotingFeedback(`Your vote "${formatOptionLabel(option)}" has been securely recorded on the external server.`);
+        } else {
+          setVotingFeedback(data.error || 'Failed to record vote.');
+        }
+      } catch (err: any) {
+        setVotingFeedback(`Voting failed: ${err.message}`);
+      } finally {
+        setVotingLoading(false);
       }
-    } catch (err: any) {
-      setVotingFeedback(`Voting failed: ${err.message}`);
-    } finally {
-      setVotingLoading(false);
+    } else {
+      // Local client-side voting for demonstration & offline static hosting
+      try {
+        const result = repository.castClaimVote({
+          claimId: report.claimPoll.claimId,
+          claimVersion: report.claimPoll.claimVersion,
+          userId: user.id,
+          voteOption: option,
+          claimStatement: report.claimPoll.claimStatement
+        });
+        setReport((prev) => (prev ? { ...prev, claimPoll: result.poll } : prev));
+        setVotingFeedback(`Your vote "${formatOptionLabel(option)}" has been recorded in your local session as ${user.name}.`);
+      } catch (err: any) {
+        setVotingFeedback(`Voting failed: ${err.message}`);
+      } finally {
+        setVotingLoading(false);
+      }
     }
   };
 
   // Withdraw Vote Handler
   const handleWithdrawVote = async () => {
-    if (!report?.claimPoll || !sessionUser) return;
-    setVotingLoading(true);
+    if (!report?.claimPoll) return;
+    const user = sessionUser || repository.getActiveUser();
+    if (!user || user.role === 'guest') return;
 
-    try {
-      const res = await fetch(
-        `/api/claims/${encodeURIComponent(report.claimPoll.claimId)}/poll?version=${report.claimPoll.claimVersion}`,
-        { method: 'DELETE' }
-      );
-      const data = await res.json();
-      if (res.ok && data.success && data.poll) {
-        setReport((prev) => (prev ? { ...prev, claimPoll: data.poll } : prev));
-        setVotingFeedback('Your vote has been withdrawn.');
+    setVotingLoading(true);
+    const apiUrl = getExternalApiUrl();
+    if (apiUrl) {
+      try {
+        const res = await fetch(
+          `${apiUrl}/api/claims/${encodeURIComponent(report.claimPoll.claimId)}/poll?version=${report.claimPoll.claimVersion}`,
+          { method: 'DELETE' }
+        );
+        const data = await res.json();
+        if (res.ok && data.success && data.poll) {
+          setReport((prev) => (prev ? { ...prev, claimPoll: data.poll } : prev));
+          setVotingFeedback('Your vote has been withdrawn.');
+        }
+      } catch (err: any) {
+        setVotingFeedback(`Failed to withdraw vote: ${err.message}`);
+      } finally {
+        setVotingLoading(false);
       }
-    } catch (err: any) {
-      setVotingFeedback(`Failed to withdraw vote: ${err.message}`);
-    } finally {
-      setVotingLoading(false);
+    } else {
+      try {
+        const result = repository.withdrawClaimVote({
+          claimId: report.claimPoll.claimId,
+          claimVersion: report.claimPoll.claimVersion,
+          userId: user.id
+        });
+        setReport((prev) => (prev ? { ...prev, claimPoll: result.poll } : prev));
+        setVotingFeedback('Your vote has been withdrawn from this local session.');
+      } catch (err: any) {
+        setVotingFeedback(`Failed to withdraw vote: ${err.message}`);
+      } finally {
+        setVotingLoading(false);
+      }
     }
   };
 
-  // Login submission
+  // Login submission (external backend authentication)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) {
+      setModalError('No external API server is configured. Please select one of the verified persona options above for offline demonstration mode.');
+      return;
+    }
+
     setModalLoading(true);
     setModalError(null);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: modalEmail, password: modalPassword })
@@ -739,13 +854,76 @@ export default function SearchClient({
         )}
 
         {error && !loading && (
-          <div className="m-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
-            <div>
-              <div className="font-semibold">Analysis Failed</div>
-              <div>{error}</div>
+          error.startsWith('OFFLINE_QUERY_UNAVAILABLE:') ? (
+            <div className="m-6 p-6 sm:p-8 rounded-3xl bg-white border border-[#E2E8E4] shadow-xs space-y-5 animate-in fade-in max-w-4xl mx-auto">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono text-[10px] font-bold">
+                      EXTERNAL BACKEND NOT CONNECTED
+                    </span>
+                    <span className="text-xs font-mono text-[#86928C]">GitHub Pages Static Frontend</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold font-serif-headline text-[#141A17]">
+                    No Live Scraper Backend Connected for &ldquo;{error.replace('OFFLINE_QUERY_UNAVAILABLE:', '')}&rdquo;
+                  </h3>
+                  <p className="text-xs text-[#525C56] leading-relaxed">
+                    VERITY is running as a static frontend hosted continuously on GitHub Pages. To query arbitrary live topics across Google News, Twitter, and Gemini AI without browser CORS blocks or exposing server API keys, connect an external VERITY backend in <Link href="/login" className="text-[#044C4C] underline font-semibold">API Settings</Link>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#F4F7F5] border border-[#E2E8E4] space-y-3">
+                <div className="flex items-center justify-between text-xs font-mono text-[#044C4C] font-semibold">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-[#044C4C]" />
+                    EXPLORE VERIFIED SAMPLE DOSSIERS (OFFLINE DEMONSTRATION)
+                  </span>
+                  <span className="text-[#86928C] text-[11px]">7 Dossiers Available</span>
+                </div>
+                <p className="text-xs text-[#525C56]">
+                  Click any verified dossier below to inspect full multi-source intelligence, chronological event timelines, audit trails, and community sentiment:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {SAMPLE_QUERIES.map((sq, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => executeSearch(sq)}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#E6F2F2] border border-[#D5DFD8] text-xs text-[#141A17] hover:text-[#044C4C] font-medium transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <Search className="w-3 h-3 text-[#044C4C]" />
+                      <span>{sq}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#F0F4F1] flex-wrap gap-3">
+                <Link
+                  href="/login"
+                  className="px-4 py-2 rounded-xl bg-[#044C4C] hover:bg-[#1B5E20] text-white text-xs font-semibold flex items-center gap-2 transition-colors shadow-2xs"
+                >
+                  <Server className="w-4 h-4" />
+                  <span>Configure External Backend API</span>
+                </Link>
+                <span className="text-[11px] font-mono text-[#86928C]">
+                  Zero server credentials stored in static frontend
+                </span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="m-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+              <div>
+                <div className="font-semibold">Analysis Failed</div>
+                <div>{error}</div>
+              </div>
+            </div>
+          )
         )}
 
         {/* ======================================================================= */}
@@ -768,6 +946,12 @@ export default function SearchClient({
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[10px] font-bold">
                         PRIMARY AI EVIDENCE ASSESSMENT
                       </span>
+                      {(!getExternalApiUrl() || report.isArchivedDemonstration) && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                          <Info className="w-3 h-3 text-amber-700" />
+                          VERIFIED OFFLINE DOSSIER
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1809,50 +1993,84 @@ export default function SearchClient({
               </button>
             </div>
 
-            <p className="text-xs text-[#525C56]">
-              Sign in with your verified analyst credentials to cast authenticated votes and contribute to community dossiers.
-            </p>
-
-            <form onSubmit={handleLoginSubmit} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-mono text-[#69746E] uppercase mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="analyst@verity.org"
-                  value={modalEmail}
-                  onChange={(e) => setModalEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E2E8E4] text-xs outline-none focus:border-[#044C4C]"
-                />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold text-[#141A17]">Instant Persona Selection (Offline Mode)</div>
+                <p className="text-xs text-[#525C56]">
+                  Select a verified analyst persona to cast community votes immediately in this session:
+                </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-mono text-[#69746E] uppercase mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={modalPassword}
-                  onChange={(e) => setModalPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E2E8E4] text-xs outline-none focus:border-[#044C4C]"
-                />
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = repository.setActiveUser('contributor');
+                    setSessionUser(u);
+                    setShowAuthModal(false);
+                    if (authPendingVote) {
+                      const p = authPendingVote;
+                      setAuthPendingVote(null);
+                      setTimeout(() => handleVote(p), 150);
+                    }
+                  }}
+                  className="w-full p-3 rounded-2xl bg-[#F4F7F5] hover:bg-[#E6F2F2] border border-[#D5DFD8] text-left flex items-center justify-between cursor-pointer transition-colors group"
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-[#141A17] group-hover:text-[#044C4C]">
+                      Priya Sharma
+                    </div>
+                    <div className="text-[11px] text-[#69746E]">
+                      Verified Contributor • Trust Score 88 • 42 Audited Submissions
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-[#69746E] group-hover:text-[#044C4C]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = repository.setActiveUser('moderator');
+                    setSessionUser(u);
+                    setShowAuthModal(false);
+                    if (authPendingVote) {
+                      const p = authPendingVote;
+                      setAuthPendingVote(null);
+                      setTimeout(() => handleVote(p), 150);
+                    }
+                  }}
+                  className="w-full p-3 rounded-2xl bg-[#F4F7F5] hover:bg-[#E6F2F2] border border-[#D5DFD8] text-left flex items-center justify-between cursor-pointer transition-colors group"
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-[#141A17] group-hover:text-[#044C4C]">
+                      Vikram Rao
+                    </div>
+                    <div className="text-[11px] text-[#69746E]">
+                      Senior Lead Moderator • Trust Score 96 • Full Audit Authorization
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-[#69746E] group-hover:text-[#044C4C]" />
+                </button>
               </div>
 
-              {modalError && (
-                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800">
-                  {modalError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={modalLoading}
-                className="w-full py-2.5 rounded-xl bg-[#044C4C] hover:bg-[#1B5E20] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                {modalLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                <span>Authenticate</span>
-              </button>
-            </form>
+              <div className="pt-3 border-t border-[#E8ECE9] flex items-center justify-between">
+                <Link
+                  href="/login"
+                  onClick={() => setShowAuthModal(false)}
+                  className="text-xs text-[#044C4C] hover:underline font-semibold flex items-center gap-1.5"
+                >
+                  <span>API Settings & External Login</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(false)}
+                  className="text-xs text-[#69746E] hover:text-[#141A17]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -101,15 +101,32 @@ function saveStoredSubmissions(submissions: CommunitySubmission[]) {
   }
 }
 
-// Background sync from API if running in browser
+export function getExternalApiUrl(): string | null {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('verity_custom_api_url');
+    if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
+  }
+  if (process.env.NEXT_PUBLIC_VERITY_API_URL && process.env.NEXT_PUBLIC_VERITY_API_URL.trim()) {
+    return process.env.NEXT_PUBLIC_VERITY_API_URL.trim().replace(/\/+$/, '');
+  }
+  return null;
+}
+
+// Background sync from external API if configured
 let hasInitializedSync = false;
 async function initializeClientSync() {
   if (typeof window === 'undefined' || hasInitializedSync) return;
   hasInitializedSync = true;
 
+  const apiUrl = getExternalApiUrl();
+  if (!apiUrl) {
+    // Pure local demonstration mode active on static hosting
+    return;
+  }
+
   try {
     // 1. Check DB health
-    const healthRes = await fetch('/api/health/db');
+    const healthRes = await fetch(`${apiUrl}/api/health/db`);
     if (healthRes.ok) {
       const health = await healthRes.json();
       if (health.connected) {
@@ -119,7 +136,7 @@ async function initializeClientSync() {
         }
 
         // 2. Fetch live organisations
-        const orgsRes = await fetch('/api/organisations');
+        const orgsRes = await fetch(`${apiUrl}/api/organisations`);
         if (orgsRes.ok) {
           const { data } = await orgsRes.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -128,7 +145,7 @@ async function initializeClientSync() {
         }
 
         // 3. Fetch live submissions
-        const subsRes = await fetch('/api/submissions');
+        const subsRes = await fetch(`${apiUrl}/api/submissions`);
         if (subsRes.ok) {
           const { data } = await subsRes.json();
           if (Array.isArray(data)) {
@@ -138,11 +155,11 @@ async function initializeClientSync() {
       }
     }
   } catch (err) {
-    console.debug('Background Supabase hydration skipped (local mode active):', err);
+    console.debug('External API sync deferred:', err);
   }
 }
 
-// Trigger initial sync in browser
+// Trigger initial sync in browser if external backend configured
 if (typeof window !== 'undefined') {
   initializeClientSync();
 }
@@ -161,8 +178,11 @@ export const repository = {
   },
 
   async syncFromBackend(): Promise<{ success: boolean; source: string }> {
+    const apiUrl = getExternalApiUrl();
+    if (!apiUrl) return { success: false, source: 'local_demo' };
+
     try {
-      const healthRes = await fetch('/api/health/db');
+      const healthRes = await fetch(`${apiUrl}/api/health/db`);
       if (!healthRes.ok) throw new Error('Health check failed');
       const health = await healthRes.json();
 
@@ -172,13 +192,13 @@ export const repository = {
           localStorage.setItem(STORAGE_KEYS.DATA_SOURCE, 'supabase');
         }
 
-        const orgsRes = await fetch('/api/organisations');
+        const orgsRes = await fetch(`${apiUrl}/api/organisations`);
         if (orgsRes.ok) {
           const { data } = await orgsRes.json();
           if (Array.isArray(data)) saveStoredEntities(data);
         }
 
-        const subsRes = await fetch('/api/submissions');
+        const subsRes = await fetch(`${apiUrl}/api/submissions`);
         if (subsRes.ok) {
           const { data } = await subsRes.json();
           if (Array.isArray(data)) saveStoredSubmissions(data);
@@ -202,25 +222,27 @@ export const repository = {
   },
 
   async fetchEntityBySlugAsync(slug: string): Promise<EntityProfile | undefined> {
-    try {
-      const res = await fetch(`/api/organisations/${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        const { data } = await res.json();
-        if (data) {
-          // Update in stored list if present
-          const current = getStoredEntities();
-          const idx = current.findIndex((e) => e.id === data.id || e.slug === data.slug);
-          if (idx !== -1) {
-            current[idx] = data;
-          } else {
-            current.push(data);
+    const apiUrl = getExternalApiUrl();
+    if (apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/api/organisations/${encodeURIComponent(slug)}`);
+        if (res.ok) {
+          const { data } = await res.json();
+          if (data) {
+            const current = getStoredEntities();
+            const idx = current.findIndex((e) => e.id === data.id || e.slug === data.slug);
+            if (idx !== -1) {
+              current[idx] = data;
+            } else {
+              current.push(data);
+            }
+            saveStoredEntities(current);
+            return data;
           }
-          saveStoredEntities(current);
-          return data;
         }
+      } catch (err) {
+        console.debug('Failed to fetch entity from API:', err);
       }
-    } catch (err) {
-      console.debug('Failed to fetch entity from API:', err);
     }
     return this.getEntityBySlug(slug);
   },
@@ -282,9 +304,10 @@ export const repository = {
     const current = getStoredSubmissions();
     saveStoredSubmissions([newRecord, ...current]);
 
-    // Send async write to API endpoint in background
-    if (typeof window !== 'undefined') {
-      fetch('/api/submissions', {
+    // Send async write to external API endpoint if configured
+    const apiUrl = getExternalApiUrl();
+    if (typeof window !== 'undefined' && apiUrl) {
+      fetch(`${apiUrl}/api/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(submission)
@@ -384,19 +407,12 @@ export const repository = {
       }
     }
 
-    // Call server API route for backend database persistence and audit recording
-    if (typeof window !== 'undefined') {
-      const activeUser = this.getActiveUser();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      if (activeUser.role === 'moderator') {
-        headers['x-moderator-key'] = 'dev-verity-local-2026';
-      }
-
-      fetch(`/api/submissions/${encodeURIComponent(submissionId)}/approve`, {
+    // Call server API route for backend database persistence if configured
+    const apiUrl = getExternalApiUrl();
+    if (typeof window !== 'undefined' && apiUrl) {
+      fetch(`${apiUrl}/api/submissions/${encodeURIComponent(submissionId)}/approve`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moderatorName, notes })
       }).catch((e) => console.debug('Async approval API sync deferred:', e));
     }
@@ -420,19 +436,12 @@ export const repository = {
     submissions[subIndex] = rejectedSub;
     saveStoredSubmissions(submissions);
 
-    // Call server API route for audit log persistence
-    if (typeof window !== 'undefined') {
-      const activeUser = this.getActiveUser();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      if (activeUser.role === 'moderator') {
-        headers['x-moderator-key'] = 'dev-verity-local-2026';
-      }
-
-      fetch(`/api/submissions/${encodeURIComponent(submissionId)}/reject`, {
+    // Call server API route for audit log persistence if configured
+    const apiUrl = getExternalApiUrl();
+    if (typeof window !== 'undefined' && apiUrl) {
+      fetch(`${apiUrl}/api/submissions/${encodeURIComponent(submissionId)}/reject`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moderatorName, notes })
       }).catch((e) => console.debug('Async rejection API sync deferred:', e));
     }

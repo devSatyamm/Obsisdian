@@ -1,4 +1,14 @@
-import crypto from 'crypto';
+function computeSimpleHash(input: string): string {
+  let hash1 = 5381;
+  let hash2 = 52711;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash1 = (hash1 * 33) ^ char;
+    hash2 = (hash2 * 33) ^ char;
+  }
+  return (Math.abs(hash1).toString(16) + Math.abs(hash2).toString(16)).padEnd(16, '0').slice(0, 16);
+}
+
 import {
   SearchResultItem,
   LiveIntelligenceReport,
@@ -486,7 +496,7 @@ export async function synthesizeIntelligenceReport(
   } else if (dbMatch.stagedCandidateId) {
     canonicalClaimId = dbMatch.stagedCandidateId;
   } else {
-    const hash = crypto.createHash('sha256').update(intent.canonicalClaim.toLowerCase().trim()).digest('hex').substring(0, 16);
+    const hash = computeSimpleHash(intent.canonicalClaim.toLowerCase().trim());
     canonicalClaimId = `clm_live_${hash}`;
   }
 
